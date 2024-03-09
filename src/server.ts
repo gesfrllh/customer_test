@@ -3,8 +3,12 @@ import express from 'express';
 import authRoutes from './routes/AuthRouters';
 import customerRoutes from './routes/CustomerRouters';
 
+const cors = require('cors');
+
 const app = express();
 const PORT = 6000;
+
+app.use(cors());
 
 app.use(express.json());
 
