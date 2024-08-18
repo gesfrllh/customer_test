@@ -7,7 +7,6 @@ import bcrypt from "bcrypt";
 import { RowDataPacket } from "mysql2";
 import CustomRequest from "../types/CustomerRequest";
 import { DecodedUser } from "../models/DecodedUser";
-import { createProductsTable } from "../db";
 
 const router = express.Router();
 
@@ -20,7 +19,6 @@ const verifyToken = (req: CustomRequest, res: Response, next: any) => {
 	try {
 		const decoded = jwt.verify(token, jwtSecret) as DecodedUser;
 		req.customer = decoded;
-		createProductsTable();
 
 		next();
 	} catch (err) {
@@ -30,38 +28,54 @@ const verifyToken = (req: CustomRequest, res: Response, next: any) => {
 };
 
 // Get all customers
+// Get customer along with their products
 router.get('/', verifyToken, async (req: CustomRequest, res: Response) => {
     try {
-        const customerId = req.customer?.id; // Ambil id pelanggan dari token JWT yang terverifikasi
-        const query = `
-            SELECT
-                customers.id AS customerId,
-                customers.name AS customerName,
-                customers.email AS customerEmail,
-                GROUP_CONCAT(
-                    JSON_OBJECT(
-                        'id', products.id,
-                        'name', products.name,
-                        'price', products.price,
-                        'image_data', products.image_data
-                    ) ORDER BY products.id ASC
-                ) AS products
-            FROM customers
-            LEFT JOIN products ON customers.id = products.customerId
-            WHERE customers.id = ? 
-            GROUP BY customers.id
-        `;
-        const results: RowDataPacket[] = await executeQuery<RowDataPacket>(query, [customerId]);
+        const customerId = req.customer?.id; // Extract customer ID from JWT
 
-        if (results.length === 0) {
+        // Ensure customerId is present
+        if (!customerId) {
+            return res.status(401).json({ message: "Unauthorized: No customer ID found" });
+        }
+
+        // Query to get customer details
+        const customerQuery = `
+            SELECT
+                id AS customerId,
+                name AS customerName,
+                email AS customerEmail
+            FROM customers
+            WHERE id = ?
+        `;
+        const customerResults: RowDataPacket[] = await executeQuery<RowDataPacket>(customerQuery, [customerId]);
+
+        if (customerResults.length === 0) {
             return res.status(404).json({ message: "Customer not found" });
         }
 
+        // Query to get products related to the customer
+        const productsQuery = `
+            SELECT
+                id AS productId,
+                name AS productName,
+                price AS productPrice,
+                image_id AS productImageId
+            FROM products
+            WHERE customerId = ?
+        `;
+        const productsResults: RowDataPacket[] = await executeQuery<RowDataPacket>(productsQuery, [customerId]);
+
+        // Construct the response object with customer and products
         const customerWithProducts = {
-            id: results[0].customerId,
-            name: results[0].customerName,
-            email: results[0].customerEmail,
-            products: JSON.parse(`[${results[0].products}]`)
+            id: customerResults[0].customerId,
+            name: customerResults[0].customerName,
+            email: customerResults[0].customerEmail,
+            products: productsResults.map(product => ({
+                id: product.productId,
+                name: product.productName,
+                price: product.productPrice,
+                image_id: product.productImageId
+            }))
         };
 
         res.status(200).json(customerWithProducts);
@@ -70,7 +84,6 @@ router.get('/', verifyToken, async (req: CustomRequest, res: Response) => {
         res.status(500).json({ message: 'Server error' });
     }
 });
-
 
 // Get a single customer by ID
 router.get("/:id", verifyToken, async (req: Request, res: Response) => {

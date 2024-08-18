@@ -4,5 +4,5 @@ export interface Product{
     price: number,
     description: string,
     customerId: number,
-    image_data:string
+    image_id:number
 }

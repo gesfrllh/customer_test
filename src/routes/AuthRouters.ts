@@ -15,13 +15,14 @@ router.post("/register", async (req: Request, res: Response) => {
 			.status(400)
 			.json({ message: "Name, email, and password are required" });
 	}
+	
 
 	try {
 		const lastCustomersIdQuery =
 			"SELECT id FROM customers ORDER BY id DESC LIMIT 1";
 		const lastCustomers: any[] = await executeQuery<any>(lastCustomersIdQuery);
 		let newCustomersId = 1;
-
+		
 		if (lastCustomers.length > 0) {
 			newCustomersId = lastCustomers[0].id + 1;
 		}
@@ -81,7 +82,7 @@ router.post("/login", async (req: Request, res: Response) => {
 		const token = jwt.sign(
 			{ id: customer.id, email: customer.email },
 			jwtSecret,
-			{ expiresIn: "1h" }
+			{ expiresIn: "24h" }
 		);
 		res.status(200).json({ message: "Login successful", token });
 	} catch (error) {
