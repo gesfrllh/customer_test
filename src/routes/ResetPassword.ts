@@ -31,15 +31,14 @@ async function sendResetPasswordEmail(email: string, resetToken: string) {
   await transporter.sendMail(mailOptions);
 }
 
-// Router untuk mengirim email reset password
 router.post("/forgot-password", async (req: Request, res: Response) => {
   const { email } = req.body;
+  console.log(email)
   if (!email) {
     return res.status(400).json({ message: "Email is required" });
   }
 
   try {
-    // Cek apakah pengguna dengan email tersebut ada di basis data
     const fetchUserQuery = `
       SELECT id, email FROM customers WHERE email = ?
     `;
@@ -49,12 +48,10 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Generate token reset password
     const resetToken = jwt.sign({ email: user.email }, jwtSecret, {
       expiresIn: "1h",
     });
 
-    // Kirim email reset password
     await sendResetPasswordEmail(email, resetToken);
     
     res.status(200).json({ message: "Reset password email sent" });
@@ -64,7 +61,6 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
   }
 });
 
-// Router untuk mereset password
 router.post("/reset-password", async (req: Request, res: Response) => {
     const { token, newPassword} = req.body;
     if (!token || !newPassword) {
@@ -72,15 +68,12 @@ router.post("/reset-password", async (req: Request, res: Response) => {
     }
     
     try {
-      // Verifikasi token reset password
       const decoded = jwt.verify(token, jwtSecret);
   
-      // Pastikan decoded memiliki properti email sebelum mengaksesnya
       if (typeof decoded !== 'object' || !('email' in decoded)) {
         return res.status(400).json({ message: "Invalid token" });
       }
   
-      // Update password di basis data
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       await executeQuery(`
         UPDATE customers SET password = ? WHERE email = ?

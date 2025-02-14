@@ -1,88 +1,93 @@
-import express, { Request, Response } from "express";
-import jwt from "jsonwebtoken";
+import express, {  Request, Response } from "express";
 import { executeQuery } from "../db";
 import { Customer } from "../models/Customer";
-import { jwtSecret } from "../config";
 import bcrypt from "bcrypt";
 import { RowDataPacket } from "mysql2";
 import CustomRequest from "../types/CustomerRequest";
-import { DecodedUser } from "../models/DecodedUser";
+import verifyToken from "../middleware/VerifyToken";
 
 const router = express.Router();
 
-// Middleware to verify JWT token
-const verifyToken = (req: CustomRequest, res: Response, next: any) => {
-	const token = req.headers.authorization?.split(" ")[1];
-	if (!token) {
-		return res.status(401).json({ message: "Unauthorized" });
-	}
-	try {
-		const decoded = jwt.verify(token, jwtSecret) as DecodedUser;
-		req.customer = decoded;
 
-		next();
-	} catch (err) {
-		console.error(err);
-		res.status(403).json({ message: "Invalid Token" });
-	}
+const getDataDashboard = async (req: CustomRequest): Promise<any | null> => {
+  const token = req.headers.authorization?.split(" ")[1];
+  try {
+    const getDashboardResponse = await fetch("http://localhost:8080/api/dashboard", {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!getDashboardResponse.ok) {
+      throw new Error("Failed to fetch dashboard data");
+    }
+
+    const dashboardData = await getDashboardResponse.json();
+    return dashboardData.length > 0 ? dashboardData : null; // Return null if no dashboard exists
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
 };
 
-// Get all customers
-// Get customer along with their products
+
 router.get('/', verifyToken, async (req: CustomRequest, res: Response) => {
-    try {
-        const customerId = req.customer?.id; // Extract customer ID from JWT
+  const token = req.headers.authorization?.split(" ")[1];
+  try {
+    const customerId = req.customer?.id; // Extract customer ID from JWT
 
-        // Ensure customerId is present
-        if (!customerId) {
-            return res.status(401).json({ message: "Unauthorized: No customer ID found" });
-        }
-
-        // Query to get customer details
-        const customerQuery = `
-            SELECT
-                id AS customerId,
-                name AS customerName,
-                email AS customerEmail
-            FROM customers
-            WHERE id = ?
-        `;
-        const customerResults: RowDataPacket[] = await executeQuery<RowDataPacket>(customerQuery, [customerId]);
-
-        if (customerResults.length === 0) {
-            return res.status(404).json({ message: "Customer not found" });
-        }
-
-        // Query to get products related to the customer
-        const productsQuery = `
-            SELECT
-                id AS productId,
-                name AS productName,
-                price AS productPrice,
-                image_id AS productImageId
-            FROM products
-            WHERE customerId = ?
-        `;
-        const productsResults: RowDataPacket[] = await executeQuery<RowDataPacket>(productsQuery, [customerId]);
-
-        // Construct the response object with customer and products
-        const customerWithProducts = {
-            id: customerResults[0].customerId,
-            name: customerResults[0].customerName,
-            email: customerResults[0].customerEmail,
-            products: productsResults.map(product => ({
-                id: product.productId,
-                name: product.productName,
-                price: product.productPrice,
-                image_id: product.productImageId
-            }))
-        };
-
-        res.status(200).json(customerWithProducts);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: 'Server error' });
+    if (!customerId) {
+      return res.status(401).json({ message: "Unauthorized: No customer ID found" });
     }
+
+    // Fetch customer details
+    const customerQuery = `
+      SELECT
+        id AS customerId,
+        name AS customerName,
+        email AS customerEmail
+      FROM customers
+      WHERE id = ?
+    `;
+    const customerResults: RowDataPacket[] = await executeQuery<RowDataPacket>(customerQuery, [customerId]);
+
+    if (customerResults.length === 0) {
+      return res.status(404).json({ message: "Customer not found" });
+    }
+
+    const customerWithProducts = {
+      id: customerResults[0].customerId,
+      name: customerResults[0].customerName,
+      email: customerResults[0].customerEmail,
+    };
+
+    const dashboardData = await getDataDashboard(req);
+
+    if (dashboardData) {
+      return res.status(200).json({ customer: customerWithProducts, dashboard: dashboardData });
+    }
+
+    const createDashboardResponse = await fetch("http://localhost:8080/api/dashboard", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name: "My Dashboard" }),
+    });
+
+    if (!createDashboardResponse.ok) {
+      throw new Error("Failed to create dashboard");
+    }
+    const newDashboardData = await getDataDashboard(req);
+
+    res.status(200).json({ customer: customerWithProducts, dashboard: newDashboardData });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error' });
+  }
 });
 
 // Get a single customer by ID

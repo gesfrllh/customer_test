@@ -84,16 +84,13 @@ router.post("/login", async (req: Request, res: Response) => {
 			jwtSecret,
 			{ expiresIn: "24h" }
 		);
+    
 		res.status(200).json({ message: "Login successful", token });
 	} catch (error) {
 		console.error("Error logging in user: ", error);
 		res.status(500).json({ message: "Server error" });
 	}
 });
-
-router.post('/reset-password', async(req:Request, res: Response) => {
-	
-})
 
 
 export default router;

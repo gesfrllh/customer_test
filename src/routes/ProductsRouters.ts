@@ -1,35 +1,13 @@
 import express, { Request, Response } from "express";
-import jwt from "jsonwebtoken";
 import { executeQuery } from "../db";
 import { Product } from "../models/Products";
-import { jwtSecret } from "../config";
 import { RowDataPacket } from "mysql2";
 import CustomRequest from "../types/CustomerRequest";
-import { DecodedUser } from "../models/DecodedUser";
 import { generateMonthsArray, calculatePrices } from "./DashboardRoutes";
-import path from "path";
-import fs from 'fs-extra';
-import multer from "multer";
+import verifyToken from "../middleware/VerifyToken";
 
 const router = express.Router();
 
-// Middleware to verify JWT token
-function verifyToken(req: CustomRequest, res: Response, next: any) {
-    const token = req.headers.authorization?.split(" ")[1];
-    if (!token) {
-        return res.status(401).json({ message: "Unauthorized" });
-    }
-    try {
-        const decoded = jwt.verify(token, jwtSecret) as DecodedUser;
-        req.customer = decoded;
-        next();
-    } catch (err) {
-        console.error(err);
-        res.status(403).json({ message: "Invalid Token" });
-    }
-}
-
-// Update price per month based on customer products
 async function updatePricePerMonth(customerId: number) {
     try {
         const lastDashboardIdQuery = "SELECT id FROM dashboard ORDER BY id DESC LIMIT 1";
@@ -64,22 +42,19 @@ async function updatePricePerMonth(customerId: number) {
     }
 }
 
-// Get all products for the authenticated customer with pagination
 router.get("/", verifyToken, async (req: CustomRequest, res: Response) => {
     try {
         const customerId = req.customer?.id;
         const search = req.query.query as string | undefined;
-        const page = parseInt(req.query.page as string) || 1; // Current page, default 1
-        const limit = parseInt(req.query.limit as string) || 10; // Number of items per page, default 10
+        const page = parseInt(req.query.page as string) || 1; 
+        const limit = parseInt(req.query.limit as string) || 10; 
 
         if (!customerId) {
             return res.status(401).json({ message: "Unauthorized: No customer ID found" });
         }
 
-        // Calculate offset based on page and limit
         const offset = (page - 1) * limit;
 
-        // Query to get products with pagination and search
         const productsQuery = `
             SELECT p.id AS product_id, 
                    p.name, 
