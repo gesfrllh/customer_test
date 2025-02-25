@@ -147,7 +147,8 @@ router.get("/:id", verifyToken, async (req: CustomRequest, res: Response) => {
                    i.id AS image_id, 
                    i.filename, 
                    i.path, 
-                   i.created_at
+                   i.created_at,
+                   i.size
             FROM products p
             LEFT JOIN images i ON p.image_id = i.id
             WHERE p.customerId = ? AND p.id = ?
@@ -155,6 +156,7 @@ router.get("/:id", verifyToken, async (req: CustomRequest, res: Response) => {
         const values: (number | string)[] = [customerId, productId];
 
         const product: RowDataPacket[] = await executeQuery<RowDataPacket>(productQuery, values);
+        console.log(product);
 
         if (product.length === 0) {
             return res.status(404).json({ message: "Product not found" });
@@ -172,7 +174,8 @@ router.get("/:id", verifyToken, async (req: CustomRequest, res: Response) => {
                 id: product[0].image_id,
                 filename: product[0].filename,
                 url: baseUrl + product[0].filename, // Construct image URL
-                createdAt: product[0].created_at
+                createdAt: product[0].created_at,
+                size: product[0].size
             } : null
         };
 
