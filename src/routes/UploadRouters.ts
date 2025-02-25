@@ -18,9 +18,13 @@ const storage = multer.diskStorage({
         cb(null, productsDir);
     },
     filename: function (req, file, cb) {
+        // Get the original file extension
         const fileExt = path.extname(file.originalname);
-        const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}${fileExt}`;
-        cb(null, filename);
+
+        // Generate a unique filename by appending timestamp and random number to the original filename
+        const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}-${file.originalname}`;
+
+        cb(null, filename); // Save file with the new unique name
     }
 });
 
@@ -35,13 +39,14 @@ router.post("/", upload.single('file'), async (req: Request, res: Response) => {
 
         const fileUrl = req.file.filename;
         const filePath = path.join(productsDir, fileUrl);
+        const fileSize = req.file.size; // File size in bytes
 
         // Save file metadata to the database
         const insertQuery = `
-            INSERT INTO images (filename, path)
-            VALUES (?, ?)
+            INSERT INTO images (filename, path, size)
+            VALUES (?, ?, ?)
         `;
-        const result: any = await executeQuery(insertQuery, [fileUrl, filePath]);
+        const result: any = await executeQuery(insertQuery, [fileUrl, filePath, fileSize]);
 
         // Extract the insertId from the result
         const imageId = (result as any).insertId;
@@ -51,6 +56,7 @@ router.post("/", upload.single('file'), async (req: Request, res: Response) => {
             id: imageId,
             filename: fileUrl,
             path: filePath,
+            size: fileSize,  // Size in bytes
             url: `/uploads/products/${fileUrl}` // Example URL path, adjust as needed
         };
 
